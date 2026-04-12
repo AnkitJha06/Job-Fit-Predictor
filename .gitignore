@@ -1,3 +1,18 @@
+# Virtual environment
+myenv/
+
+# Model binaries (too large)
+models/
+splits/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
