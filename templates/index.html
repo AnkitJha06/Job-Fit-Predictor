@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Fit Predictor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header>
+  <h1>🌟 Job Fit Predictor</h1>
+  <p>Enter your profile and discover how well you match your target role</p>
+</header>
+
+<div class="container">
+  <div class="card">
+    <h2>Your Profile</h2>
+
+    <div class="form-grid">
+      <div>
+        <label for="job_role">Target Job Role</label>
+        <select id="job_role" onchange="updateRoleSuggestions()">
+          {% for role in job_roles %}
+          <option value="{{ role }}">{{ role }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label for="experience">Years of Experience</label>
+        <input type="number" id="experience" min="0" max="40" step="0.5" value="1" placeholder="e.g. 2.5">
+      </div>
+
+      <div class="form-full">
+        <label>Your Skills</label>
+
+        <div id="addedSkills" class="added-skills-box"></div>
+
+        <div class="skill-row">
+          <div class="skill-autocomplete-wrap" id="acWrap">
+            <input
+              type="text"
+              id="skillInput"
+              class="skill-text-input"
+              placeholder="Type a skill e.g. python, docker..."
+              autocomplete="off"
+            >
+            <div id="acDropdown" class="ac-dropdown"></div>
+          </div>
+
+          <button class="add-btn" id="addBtn" type="button">+ Add</button>
+        </div>
+
+        <div id="suggSection" style="margin-top:0.8rem;">
+          <div class="sugg-label">Suggested for this role:</div>
+          <div id="suggChips" class="sugg-chips"></div>
+        </div>
+
+        <input type="hidden" id="skillsHidden">
+      </div>
+
+      <div class="form-full">
+        <label for="eduSelect">Education / Certifications</label>
+        <select id="eduSelect" onchange="toggleEduCustom()">
+          <option value="">-- Select your education --</option>
+          <option>High School Diploma</option>
+          <option>Diploma / Polytechnic</option>
+          <option>B.Sc Computer Science</option>
+          <option>B.Tech / B.E Computer Science</option>
+          <option>B.Tech / B.E Information Technology</option>
+          <option>B.Tech / B.E Electronics</option>
+          <option>BCA (Bachelor of Computer Applications)</option>
+          <option>B.Com / BBA</option>
+          <option>M.Sc Computer Science</option>
+          <option>M.Tech / M.E Computer Science</option>
+          <option>MCA (Master of Computer Applications)</option>
+          <option>MBA</option>
+          <option>Ph.D</option>
+          <option>Google Data Analytics Certificate</option>
+          <option>AWS Certified Solutions Architect</option>
+          <option>Microsoft Azure Fundamentals</option>
+          <option>Certified Ethical Hacker (CEH)</option>
+          <option>PMP Certification</option>
+          <option value="__other__">Other (type manually)</option>
+        </select>
+
+        <input
+          type="text"
+          id="eduCustom"
+          placeholder="Enter your education / certification"
+          style="display:none;margin-top:0.6rem;"
+        >
+      </div>
+    </div>
+
+    <button class="btn" id="predictBtn" type="button" onclick="predict()">Analyse My Fit</button>
+  </div>
+
+  <div id="resultSection"></div>
+</div>
+
+<script>
+var ALL_SKILLS = [
+  "python","java","javascript","typescript","c","c++","c#","ruby","go","rust","swift","kotlin","php","scala","r",
+  "html","css","react","vue","angular","node.js","express","django","flask","fastapi","spring boot","laravel",
+  "sql","mysql","postgresql","mongodb","redis","elasticsearch","cassandra","sqlite","oracle","firebase",
+  "docker","kubernetes","aws","azure","gcp","terraform","jenkins","linux","bash","ansible","helm",
+  "machine learning","deep learning","tensorflow","pytorch","keras","scikit-learn","pandas","numpy","matplotlib",
+  "data analysis","data visualization","tableau","power bi","excel","statistics","nlp","computer vision",
+  "git","agile","scrum","jira","rest api","graphql","microservices","system design","object oriented programming",
+  "data structures","algorithms","testing","unit testing","selenium","cypress","jest","ci/cd",
+  "network security","penetration testing","siem","firewalls","vulnerability assessment",
+  "recruitment","talent acquisition","hris","employee relations","performance management","onboarding","payroll",
+  "requirements gathering","stakeholder management","process improvement","documentation",
+  "mlops","mlflow","airflow","spark","hadoop","kafka",
+  "responsive design","sass","tailwind css","webpack","vite","next.js","nuxt.js","svelte",
+  "rabbitmq","grpc","websockets","oauth","jwt","cloud computing","serverless","devops","sre",
+  "networking","tcp/ip","dns","linux administration","shell scripting"
+];
+
+var ROLE_SKILLS = {
+  "Data Scientist": ["python","machine learning","statistics","sql","data analysis","tensorflow","pandas","numpy","deep learning","scikit-learn","matplotlib","nlp"],
+  "Data Analyst": ["sql","excel","python","tableau","power bi","data visualization","statistics","pandas","matplotlib"],
+  "Frontend Developer": ["html","css","javascript","react","typescript","responsive design","git","vue","angular","sass","tailwind css","next.js"],
+  "Backend Developer": ["python","java","node.js","sql","rest api","docker","git","postgresql","redis","spring boot","microservices"],
+  "Full Stack Developer": ["html","css","javascript","react","node.js","python","sql","git","docker","rest api","mongodb","typescript"],
+  "Machine Learning Engineer": ["python","machine learning","deep learning","tensorflow","pytorch","mlops","docker","mlflow","scikit-learn","kubernetes"],
+  "DevOps Engineer": ["docker","kubernetes","aws","ci/cd","linux","terraform","jenkins","git","ansible","bash","azure"],
+  "HR Manager": ["recruitment","talent acquisition","hris","employee relations","performance management","onboarding","payroll"],
+  "Software Engineer": ["python","java","javascript","data structures","algorithms","system design","git","sql","rest api","testing","docker","aws","agile","scrum","react","object oriented programming"],
+  "Business Analyst": ["requirements gathering","sql","excel","stakeholder management","process improvement","power bi","documentation","jira","agile"],
+  "Cloud Engineer": ["aws","azure","gcp","docker","kubernetes","terraform","networking","linux","serverless","ci/cd","ansible"],
+  "Cybersecurity Analyst": ["network security","penetration testing","siem","firewalls","vulnerability assessment","python","linux"]
+};
+
+var addedSkills = [];
+var acActiveIdx = -1;
+
+function toggleEduCustom() {
+  var sel = document.getElementById("eduSelect").value;
+  var inp = document.getElementById("eduCustom");
+  inp.style.display = sel === "__other__" ? "block" : "none";
+  if (sel !== "__other__") inp.value = "";
+}
+
+function renderAddedSkills() {
+  var box = document.getElementById("addedSkills");
+  box.innerHTML = "";
+
+  addedSkills.forEach(function(skill) {
+    var pill = document.createElement("span");
+    pill.className = "skill-pill";
+
+    var text = document.createElement("span");
+    text.textContent = skill;
+
+    var btn = document.createElement("button");
+    btn.className = "pill-remove";
+    btn.type = "button";
+    btn.innerHTML = "✕";
+    btn.onclick = function() { removeSkill(skill); };
+
+    pill.appendChild(text);
+    pill.appendChild(btn);
+    box.appendChild(pill);
+  });
+
+  document.getElementById("skillsHidden").value = addedSkills.join(",");
+}
+
+function addSkill(raw) {
+  var s = raw.trim().toLowerCase();
+  if (!s) return;
+  if (addedSkills.indexOf(s) !== -1) return;
+
+  addedSkills.push(s);
+  renderAddedSkills();
+  updateRoleSuggestions();
+  closeDropdown();
+
+  document.getElementById("skillInput").value = "";
+  document.getElementById("skillInput").focus();
+}
+
+function removeSkill(skill) {
+  addedSkills = addedSkills.filter(function(x) { return x !== skill; });
+  renderAddedSkills();
+  updateRoleSuggestions();
+}
+
+function showDropdown() {
+  var q = document.getElementById("skillInput").value.trim().toLowerCase();
+  var box = document.getElementById("acDropdown");
+  acActiveIdx = -1;
+
+  if (q.length < 1) {
+    closeDropdown();
+    return;
+  }
+
+  var matches = ALL_SKILLS.filter(function(skill) {
+    return skill.indexOf(q) !== -1 && addedSkills.indexOf(skill) === -1;
+  }).slice(0, 8);
+
+  if (!matches.length) {
+    closeDropdown();
+    return;
+  }
+
+  box.innerHTML = "";
+
+  matches.forEach(function(skill) {
+    var item = document.createElement("div");
+    item.className = "ac-item";
+    item.setAttribute("data-skill", skill);
+
+    var idx = skill.indexOf(q);
+    item.innerHTML =
+      skill.slice(0, idx) +
+      "<strong>" + skill.slice(idx, idx + q.length) + "</strong>" +
+      skill.slice(idx + q.length);
+
+    item.addEventListener("mousedown", function(e) {
+      e.preventDefault();
+      addSkill(skill);
+    });
+
+    box.appendChild(item);
+  });
+
+  box.style.display = "block";
+}
+
+function closeDropdown() {
+  var box = document.getElementById("acDropdown");
+  box.style.display = "none";
+  box.innerHTML = "";
+  acActiveIdx = -1;
+}
+
+function updateRoleSuggestions() {
+  var role = document.getElementById("job_role").value;
+  var chips = document.getElementById("suggChips");
+  var pool = ROLE_SKILLS[role] || [];
+
+  chips.innerHTML = "";
+
+  var remaining = pool.filter(function(skill) {
+    return addedSkills.indexOf(skill) === -1;
+  });
+
+  if (!remaining.length) {
+    chips.innerHTML = '<span style="color:#888;font-size:0.82rem;">All suggested skills added!</span>';
+    return;
+  }
+
+  remaining.forEach(function(skill) {
+    var chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "sugg-chip";
+    chip.textContent = "+ " + skill;
+    chip.onclick = function() { addSkill(skill); };
+    chips.appendChild(chip);
+  });
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  var inp = document.getElementById("skillInput");
+  var btn = document.getElementById("addBtn");
+
+  inp.addEventListener("input", showDropdown);
+
+  inp.addEventListener("keydown", function(e) {
+    var items = document.querySelectorAll(".ac-item");
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      acActiveIdx = Math.min(acActiveIdx + 1, items.length - 1);
+      items.forEach(function(el, i) {
+        el.classList.toggle("ac-active", i === acActiveIdx);
+      });
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      acActiveIdx = Math.max(acActiveIdx - 1, 0);
+      items.forEach(function(el, i) {
+        el.classList.toggle("ac-active", i === acActiveIdx);
+      });
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      var activeItems = document.querySelectorAll(".ac-item");
+      if (acActiveIdx >= 0 && activeItems[acActiveIdx]) {
+        addSkill(activeItems[acActiveIdx].getAttribute("data-skill"));
+      } else {
+        addSkill(inp.value);
+      }
+    } else if (e.key === "Escape") {
+      closeDropdown();
+    }
+  });
+
+  btn.addEventListener("click", function() {
+    addSkill(document.getElementById("skillInput").value);
+  });
+
+  document.addEventListener("click", function(e) {
+    if (!document.getElementById("acWrap").contains(e.target)) {
+      closeDropdown();
+    }
+  });
+
+  updateRoleSuggestions();
+});
+
+async function predict() {
+  var btn = document.getElementById("predictBtn");
+  var result = document.getElementById("resultSection");
+  var skills = document.getElementById("skillsHidden").value.trim();
+  var job_role = document.getElementById("job_role").value;
+  var experience = document.getElementById("experience").value;
+
+  var eduSel = document.getElementById("eduSelect").value;
+  var education = eduSel === "__other__"
+    ? document.getElementById("eduCustom").value.trim()
+    : (eduSel || "");
+
+  if (!skills) {
+    result.innerHTML = '<div class="error-msg">Please add at least one skill before analysing.</div>';
+    result.style.display = "block";
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "Analysing...";
+  result.style.display = "block";
+  result.innerHTML = '<div class="loading">Computing your fit score...</div>';
+
+  try {
+    var res = await fetch("/predict", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        skills: skills,
+        job_role: job_role,
+        experience: experience,
+        education: education
+      })
+    });
+
+    var d = await res.json();
+    if (d.error) throw new Error(d.error);
+    renderResult(d);
+  } catch (e) {
+    result.innerHTML = '<div class="error-msg">Error: ' + e.message + '</div>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Analyse My Fit";
+  }
+}
+
+function renderResult(d) {
+  var isStrong = d.prediction === "Strong Fit";
+  var isModerate = d.prediction === "Moderate Fit";
+  var cls = isStrong ? "strong" : isModerate ? "moderate" : "notfit";
+  var icon = isStrong ? "✅" : isModerate ? "📊" : "❌";
+
+  var matchedHTML = d.matched_skills.length
+    ? d.matched_skills.map(function(s) {
+        return '<span class="tag tag-match">' + s + '</span>';
+      }).join("")
+    : '<span class="tag-none">No exact matches found</span>';
+
+  var missingHTML = d.missing_skills.length
+    ? d.missing_skills.map(function(s) {
+        return '<span class="tag tag-missing">' + s + '</span>';
+      }).join("")
+    : '<span class="tag-none">No missing skills — great coverage!</span>';
+
+  document.getElementById("resultSection").innerHTML =
+    '<div class="card">' +
+      '<div class="verdict ' + cls + '">' +
+        '<div class="verdict-icon">' + icon + '</div>' +
+        '<div class="verdict-label">' + d.prediction + '</div>' +
+        '<div class="verdict-sub">for ' + d.job_role + '</div>' +
+      '</div>' +
+
+      '<div class="fit-score-wrap">' +
+        '<div class="fit-score-header">' +
+          '<span class="fs-label">Match Score</span>' +
+          '<span class="fs-value">' + d.composite_score + '%</span>' +
+        '</div>' +
+        '<div class="meter-bg"><div class="meter-fill" style="width:' + d.composite_score + '%"></div></div>' +
+      '</div>' +
+
+      '<div class="mini-stats">' +
+        '<span class="mstat"><strong>' + d.matched_skills.length + ' / ' + d.total_required + '</strong> skills matched</span>' +
+        '<span class="mstat-sep">·</span>' +
+        '<span class="mstat"><strong>' + d.missing_skills.length + '</strong> to learn</span>' +
+      '</div>' +
+
+      '<h2>Skills Breakdown</h2>' +
+      '<div class="skills-grid">' +
+        '<div class="skill-section">' +
+          '<h3>Matched (' + d.matched_skills.length + ')</h3>' +
+          '<div class="skill-tags">' + matchedHTML + '</div>' +
+        '</div>' +
+        '<div class="skill-section">' +
+          '<h3>To Learn (' + d.missing_skills.length + ')</h3>' +
+          '<div class="skill-tags">' + missingHTML + '</div>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="exp-note">' +
+        '<span class="exp-icon">💼</span>' +
+        '<span class="exp-text"><strong>Experience:</strong> ' + d.experience_note + '</span>' +
+      '</div>' +
+    '</div>';
+}
+</script>
+
+</body>
+</html>
